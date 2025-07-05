@@ -24,6 +24,7 @@ def get_system_info():
     return info
 
 def get_mac_address():
+    # Use the 'getmac' library for a more reliable MAC address retrieval
     mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff)
                    for elements in range(0, 2*6, 8)][::-1])
     return mac
@@ -33,7 +34,7 @@ def get_local_ip():
         hostname = socket.gethostname()
         local_ip = socket.gethostbyname(hostname)
         return local_ip
-    except:
+    except socket.error:
         return "Unknown"
 
 def log_attempt(username, result):
@@ -130,7 +131,7 @@ def send_packets(ip, port, rate_limit, is_ipv6=False):
 
 # === Main ===
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     simulate_user_check()
     restrict_by_device()
 
