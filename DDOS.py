@@ -131,7 +131,7 @@ def send_packets(ip, port, rate_limit, is_ipv6=False):
 
 # === Main ===
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     simulate_user_check()
     restrict_by_device()
 
