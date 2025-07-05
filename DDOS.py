@@ -8,6 +8,7 @@ import platform
 import os
 import uuid
 
+# === Helper Functions ===
 
 def get_system_info():
     info = {
@@ -24,7 +25,6 @@ def get_system_info():
     return info
 
 def get_mac_address():
-    # Use the 'getmac' library for a more reliable MAC address retrieval
     mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff)
                    for elements in range(0, 2*6, 8)][::-1])
     return mac
@@ -34,31 +34,33 @@ def get_local_ip():
         hostname = socket.gethostname()
         local_ip = socket.gethostbyname(hostname)
         return local_ip
-    except socket.error:
+    except:
         return "Unknown"
 
-def log_attempt(username, result):
+def log_attempt(username, hostname, mac, ip, result):
     with open("access_log.txt", "a") as f:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"{now} | Username: {username} | Result: {result}\n")
+        f.write(f"{now} | Username: {username} | Hostname: {hostname} | MAC: {mac} | IP: {ip} | Result: {result}\n")
 
 # === Security Functions ===
 
 def simulate_user_check():
     spoofed_user = input("Enter username to simulate: ").strip()
-    allowed_user = "admin"
-    allowed_password = "letmein"
+    password_input = input("Enter password: ").strip()
+    allowed_user = "testuser"
+    allowed_password = "pass123"
 
     if spoofed_user != allowed_user:
         print(f"❌ Unauthorized user: {spoofed_user}")
-        log_attempt(spoofed_user, "Unauthorized User")
+        log_attempt(spoofed_user, platform.node(), get_mac_address(), get_local_ip(), "Unauthorized Username")
         exit(1)
-    if input("Enter password: ") != allowed_password:
+    if password_input != allowed_password:
         print("❌ Incorrect password.")
-        log_attempt(spoofed_user, "Wrong Password")
+        log_attempt(spoofed_user, platform.node(), get_mac_address(), get_local_ip(), "Wrong Password")
         exit(1)
+    
     print("✅ User authentication passed.")
-    log_attempt(spoofed_user, "Access Granted")
+    log_attempt(spoofed_user, platform.node(), get_mac_address(), get_local_ip(), "Access Granted")
 
 def restrict_by_device():
     system_info = get_system_info()
@@ -73,7 +75,7 @@ def restrict_by_device():
         print("⛔ Access denied: unauthorized hostname.")
         exit(1)
 
-    if current_mac.lower() not in allowed_macs:
+    if current_mac.lower() not in [mac.lower() for mac in allowed_macs]:
         print(f"⛔ Access denied: unauthorized MAC address ({current_mac}).")
         exit(1)
 
@@ -120,7 +122,7 @@ def send_packets(ip, port, rate_limit, is_ipv6=False):
             sock.sendto(data, (ip, port))
             sent += 1
             port = (port + 1) % 65536
-            print(f" Sent {sent} packet to {ip} on port {port}")
+            print(f"Sent {sent} packet to {ip} on port {port}")
             time.sleep(1 / rate_limit)
     except socket.error as e:
         print(f"Socket error: {e}")
