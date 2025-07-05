@@ -19,7 +19,7 @@ def create_socket(is_ipv6=False):
 # Get valid IP address and determine version
 def get_target_ip():
     while True:
-        ip = input("Enter target IP address (IPv4 or IPv6): ").strip()
+        ip = input("Enter target IP address (I or M): ").strip()
         try:
             ip_obj = ipaddress.ip_address(ip)
             return ip, ip_obj.version == 6  # Returns (IP, is_ipv6)
